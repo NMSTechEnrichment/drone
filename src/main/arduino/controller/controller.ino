@@ -11,8 +11,11 @@ int throttlePin =  A3;
 int yawPin = A1;
 int pitchPin = A2;
 int rollPin = A6;
-int aux1Pin = 5; // Left switch to the right
-int aux2Pin = 3; // Right switch to the left
+int LEFT_SWITCH_1 = 4; // Left switch to the left
+int LEFT_SWITCH_2 = 5; // Left switch to the right
+int RIGHT_SWITCH_1 = 3; // Right switch to the left
+int RIGHT_SWITCH_2 = 2; // Right switch to the right
+int DIAL_PIN = A0;
 
 // Struct representing the control data coming from the remote. Should not exceed 32 bytes.
 struct ControlData {
@@ -20,8 +23,11 @@ struct ControlData {
   byte yaw;
   byte pitch;
   byte roll;
-  byte AUX1;
-  byte AUX2;
+  byte dial;
+  byte leftSwitchPosition1;
+  byte leftSwitchPosition2;
+  byte rightSwitchPosition1;
+  byte rightSwitchPosition2;
 };
 
 
@@ -29,7 +35,8 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 
 // const uint64_t pipeOut = 0xE8E8F0F0E1LL; //IMPORTANT: The same as in the receiver!!!
-const byte address[10] = "ADDRESS01";// Address needs to match reciever.
+// todo Change this based on right switch position.
+const byte address[6] = "200000";// Address needs to match reciever.
 
 RF24 radio(10, 9); // select  CE and CSN  pins
 
@@ -49,8 +56,11 @@ void resetData()
   data.yaw = 127;
   data.pitch = 127;
   data.roll = 127;
-  data.AUX1 = 0;
-  data.AUX2 = 0;
+  data.dial = 0;
+  data.leftSwitchPosition1 = 0;
+  data.leftSwitchPosition2 = 0;
+  data.rightSwitchPosition1 = 0;
+  data.rightSwitchPosition2 = 0;
 }
 
 void setup()
@@ -83,8 +93,11 @@ void setup()
   pinMode(vdividerPin, INPUT);
   Serial.begin(9600);               // starting the Serial Monitor
 
-  pinMode(5, INPUT_PULLUP);
-  pinMode(3, INPUT_PULLUP);
+  pinMode(LEFT_SWITCH_1, INPUT_PULLUP);
+  pinMode(LEFT_SWITCH_2, INPUT_PULLUP);
+  pinMode(RIGHT_SWITCH_1, INPUT_PULLUP);
+  pinMode(RIGHT_SWITCH_2, INPUT_PULLUP);
+
 }
 
 /**************************************************/
@@ -110,21 +123,36 @@ void loop()
     updateLCD();
     lcdUpdateTime = currentMillis;
   }
+
+
   // The calibration numbers used here should be measured
   // for your joysticks till they send the correct values.
   data.throttle = mapJoystickValues( analogRead(throttlePin), 13, 524, 1015, true );
   data.yaw      = mapJoystickValues( analogRead(yawPin), 50, 505, 1020, true );
   data.pitch    = mapJoystickValues( analogRead(pitchPin), 12, 544, 1021, true );
   data.roll     = mapJoystickValues( analogRead(rollPin), 34, 522, 1020, true );
-  data.AUX1     = digitalRead(aux1Pin);
-  data.AUX2     = digitalRead(aux2Pin);
+  data.dial     = map(analogRead(DIAL_PIN), 0, 1023, 0, 255);
+  data.leftSwitchPosition1 = digitalRead(LEFT_SWITCH_1);
+  data.leftSwitchPosition2 = digitalRead(LEFT_SWITCH_2);
+  data.rightSwitchPosition1 = digitalRead(RIGHT_SWITCH_1);
+  data.rightSwitchPosition2 = digitalRead(RIGHT_SWITCH_2);
 
   printData(data);
 
-  // const char txt[] = "Hello World";
-  // radio.write(&txt, sizeof(txt));
+  // todo If the right switch changes, set the radio address re-initialize it.
+
   radio.write(&data, sizeof(ControlData));
   delay(250);
+}
+
+/**
+ * Initialize the radio communications.
+ */
+void initRadioComms() {
+  radio.begin();
+  radio.openReadingPipe(0, address);
+  radio.setPALevel(RF24_PA_MIN);
+  radio.startListening();
 }
 
 
@@ -137,10 +165,16 @@ void printData(ControlData toPrint) {
     Serial.print(toPrint.pitch);
     Serial.print(" Roll: ");
     Serial.print(toPrint.roll);
-    Serial.print(" AUX1: ");
-    Serial.print(toPrint.AUX1);
-    Serial.print(" AUX2: ");
-    Serial.print(toPrint.AUX2);
+    Serial.print(" Dial: ");
+    Serial.print(toPrint.dial);
+    Serial.print(" Left Switch 1: ");
+    Serial.print(toPrint.leftSwitchPosition1);
+    Serial.print(" Left Switch 2: ");
+    Serial.print(toPrint.leftSwitchPosition2);
+    Serial.print(" Right Switch 1: ");
+    Serial.print(toPrint.rightSwitchPosition1);
+    Serial.print(" Right Switch 2: ");
+    Serial.print(toPrint.rightSwitchPosition2);
     Serial.println("");
 }
 
