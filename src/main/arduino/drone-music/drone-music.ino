@@ -13,9 +13,13 @@ struct ControlData {
   byte yaw;
   byte pitch;
   byte roll;
-  byte AUX1;
-  byte AUX2;
+  byte dial;
+  byte leftSwitchPosition1;
+  byte leftSwitchPosition2;
+  byte rightSwitchPosition1;
+  byte rightSwitchPosition2;
 };
+
 
 // The radio reciever.
 RF24 radio(7, 10); // CE, CSN
@@ -151,22 +155,24 @@ void loop() {
   
   Serial.println("Waiting for data...");
 
-  if (radio.available()) {
-    radio.read(&data, sizeof(data));
-    printData(data);
-
+  readRadio();
     
-    // Turn the LED on if AUX1 is set to 1, turn it off otherwise.
-    if(data.AUX1 == 1) {
-      Serial.println("Playing a song.");
-      playSong();
-    } 
-  }
-
+  // If the left switch is to the left (in the middle both positions are 1)
+  if(data.leftSwitchPosition1 == 0 && data.leftSwitchPosition2 == 1) { //
+    Serial.println("Playing a song.");
+    playSong();
+  } 
+  
   // Wait 250ms so we can see what is going on.
   delay(250);
 }
 
+void readRadio() {
+  if (radio.available()) {
+      radio.read(&data, sizeof(data));
+      printData(data);
+  }
+}
 
 void playSong() {
 
@@ -176,7 +182,12 @@ void playSong() {
     //to calculate the note duration, take one second divided by the note type.
     //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
     int duration = 1000 / durations[note];
-    tone(BUZZER, melody[note], duration);
+
+    // Scale duration based on the dial value
+    int durationScale = map(data.dial, 0, 255, 1, 100);
+    int actualDuration = duration / durationScale;
+
+    tone(BUZZER, melody[note], actualDuration);
 
     //to distinguish the notes, set a minimum time between them.
     //the note's duration + 30% seems to work well:
@@ -185,6 +196,13 @@ void playSong() {
 
     //stop the tone playing:
     noTone(BUZZER);
+
+    readRadio();
+    
+    // Check if we still want to play. The left switch will be center or to the left.
+    if(data.leftSwitchPosition1 == 1) {
+      return;
+    }
   }
 }
 
@@ -211,10 +229,16 @@ void printData(ControlData toPrint) {
     Serial.print(toPrint.pitch);
     Serial.print(" Roll: ");
     Serial.print(toPrint.roll);
-    Serial.print(" AUX1: ");
-    Serial.print(toPrint.AUX1);
-    Serial.print(" AUX2: ");
-    Serial.print(toPrint.AUX2);
+    Serial.print(" Dial: ");
+    Serial.print(toPrint.dial);
+    Serial.print(" Left Switch 1: ");
+    Serial.print(toPrint.leftSwitchPosition1);
+    Serial.print(" Left Switch 2: ");
+    Serial.print(toPrint.leftSwitchPosition2);
+    Serial.print(" Right Switch 1: ");
+    Serial.print(toPrint.rightSwitchPosition1);
+    Serial.print(" Right Switch 2: ");
+    Serial.print(toPrint.rightSwitchPosition2);
     Serial.println("");
 
 }
